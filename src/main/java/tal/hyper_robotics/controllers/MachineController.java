@@ -1,6 +1,7 @@
 package tal.hyper_robotics.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,6 +12,7 @@ import tal.hyper_robotics.scheduler.JobScheduler;
 
 @RestController
 @RequestMapping("/machine")
+@CrossOrigin(origins = "http://localhost:4200")
 public class MachineController {
 
     @Autowired
@@ -25,6 +27,11 @@ public class MachineController {
     public SseEmitter streamJobsAdded() {
         return jobScheduler.streamJobsAdded();
 
+    }
+
+    @GetMapping("/events")
+    public SseEmitter streamEvents() {
+        return jobScheduler.streamEvents();
     }
 
 

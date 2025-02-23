@@ -39,5 +39,4 @@ gradle/wrapper/gradle-wrapper.jar
 .gitattributes
 gradlew.bat
 gradlew
-logs/JobScheduler.log
-logs/application-2025-02-19.log
+logs/*

@@ -3,49 +3,48 @@ package tal.hyper_robotics.scheduler;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
 import tal.hyper_robotics.entities.Job;
+import tal.hyper_robotics.entities.JobState;
 
 @Service
 public class JobScheduler {
 
-    private final MachineProcessor machineA;
-    private final MachineProcessor machineB;
-    private final MachineProcessor machineC;
-    private final Queue<Job> doneJobs;
-    private final ExecutorService executorService;
     private static final Logger logger = LoggerFactory.getLogger(JobScheduler.class);
+
+    private final MachineProcessor machineA = new MachineProcessor("A", 1, 10, logger);
+    private final MachineProcessor machineB = new MachineProcessor("B", 2, 15, logger);
+    private final MachineProcessor machineC = new MachineProcessor("C", 1, 20, logger);
+    private final Queue<Job> doneJobs = new LinkedList<>();    
+    
     private final int NUM_OF_CONCURRENT_JOBS_PROCESSES = 2;
-    private final CopyOnWriteArrayList<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+    private final ExecutorService  executorService = Executors.newFixedThreadPool(NUM_OF_CONCURRENT_JOBS_PROCESSES);
+    private final SseEmitter sseEmitter = new SseEmitter();
 
     public JobScheduler(){
-        machineA = new MachineProcessor("A", 1, 10, logger);
-        machineB = new MachineProcessor("B", 2, 15, logger);
-        machineC = new MachineProcessor("C", 1, 20, logger);
-        executorService = Executors.newFixedThreadPool(NUM_OF_CONCURRENT_JOBS_PROCESSES); 
-        doneJobs = new LinkedList<>();
+       machineA.start();
+       machineB.start();
+       machineC.start();
     }
 
     public void scheduleJobs() {
         executorService.submit(this::scheduleJobsInternal);
     }
 
-    private void handleUserCreatedEvent(Job job) {
-        for (SseEmitter emitter : emitters) {
-            try {
-                emitter.send(SseEmitter.event().name("jobUpdated").data(job));
-                logger.info("emitted job change for {}", job.getId());
-            } catch (IOException e) {
-                emitters.remove(emitter);
-            }
+    public static void sendJobChanged(Job job, SseEmitter emitter) {
+        logger.info(
+                "[JobScheduler.sendJobChanged] Sending jobUpdate for job " + job.getId() + " State: " + job.getState());
+        try {
+            emitter.send(SseEmitter.event().name("jobUpdated").data(job));
+            logger.info("[JobScheduler.sendJobChanged] emitted job change for job {} and state {}", job.getId(), job.getState());
+        } catch (IOException e) {
+            logger.error("[JobScheduler.sendJobChanged] Error while sending jobChanged", e);
         }
     }
 
@@ -53,33 +52,31 @@ public class JobScheduler {
         Job job = new Job();
 
         machineA.addJob(job);
-        handleUserCreatedEvent(job);
-        logger.info("JobScheduler Machine A started processing job {}", job.getId());
+        job.setState(JobState.IN_A_QUEUE);
+        sendJobChanged(job, sseEmitter);
         Job machineADoneJob = machineA.getFinishedJob();
-        handleUserCreatedEvent(machineADoneJob);
-        logger.info("JobScheduler Machine A finished processing job {}", machineADoneJob.getId());
+        logger.info("[JobScheduler.scheduleJobsInternal] Machine A finished processing job {}", machineADoneJob.getId());
+        sendJobChanged(machineADoneJob, sseEmitter);        
 
         machineB.addJob(machineADoneJob);
-        handleUserCreatedEvent(machineADoneJob);
+        job.setState(JobState.IN_B_QUEUE);
+        sendJobChanged(machineADoneJob, sseEmitter);
         Job machineBDoneJob = machineB.getFinishedJob();
-        handleUserCreatedEvent(machineBDoneJob);
-        logger.info("JobScheduler Machine B finished processing job {}", machineADoneJob.getId());
+        sendJobChanged(machineBDoneJob, sseEmitter);
+        logger.info("[JobScheduler.scheduleJobsInternal] Machine B finished processing job {}", machineADoneJob.getId());
 
         machineC.addJob(machineBDoneJob);
-        handleUserCreatedEvent(machineBDoneJob);
+        job.setState(JobState.IN_C_QUEUE);
+        sendJobChanged(machineBDoneJob, sseEmitter);
         Job machineCDoneJob = machineC.getFinishedJob();
-        logger.info("JobScheduler Machine C finished processing job {}", machineCDoneJob.getId());
+        logger.info("[JobScheduler.scheduleJobsInternal] Machine C finished processing job {}", machineCDoneJob.getId());
+        job.setState(JobState.FINISHED);
         doneJobs.add(machineCDoneJob);
-        handleUserCreatedEvent(machineCDoneJob);
+        sendJobChanged(machineCDoneJob, sseEmitter);
     }
 
 
-    public SseEmitter streamJobsAdded() {
-        SseEmitter emitter = new SseEmitter();
-        emitters.add(emitter);
-        emitter.onCompletion(() -> emitters.remove(emitter));
-        emitter.onTimeout(() -> emitters.remove(emitter));
-        emitter.onError((e) -> emitters.remove(emitter));
-        return emitter;
+    public SseEmitter registerToJobUpdates() {
+      return this.sseEmitter;
     }
 }

@@ -20,38 +20,36 @@ public class MachineProcessor {
     private final BlockingQueue<Job> finishedJobs = new LinkedBlockingQueue<>();
     private final Logger logger;
 
-    public MachineProcessor(String machineId, int parallelExecNum, int sleepTime, Logger logger){
+    public MachineProcessor(String machineId, int parallelExecNum, int sleepTime, Logger logger) {
         this.id = machineId;
         pendingJobs = new LinkedBlockingQueue<>();
         this.sleepTime = sleepTime;
         this.running = true;
-        executorService = Executors.newFixedThreadPool(parallelExecNum); 
+        executorService = Executors.newFixedThreadPool(parallelExecNum);
         this.logger = logger;
-        logger.info("MachineProcessor {} initialized with {} parallel executions and {} seconds sleep time.", machineId, parallelExecNum, sleepTime);
-        startJobProcessor();
+        logger.info("[MachineProcessor.MachineProcessor] {} initialized with {} parallel executions and {} seconds sleep time.", machineId,
+                parallelExecNum, sleepTime);
     }
 
-    private void startJobProcessor() {
+    public void start() {
         executorService.submit(() -> {
             while (running) {
                 try {
-                    Job job = ((LinkedBlockingQueue<Job>) pendingJobs).take(); // Take job from queue (blocks if empty)
-                    logger.info("MachineProcessor {} started processing job {}", id, job.getId());
+                    Job job = ((LinkedBlockingQueue<Job>) pendingJobs).take();
+                    logger.info("[MachineProcessor.start] {} started processing job {}", id, job.getId());
                     executeJob(job);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    logger.error("MachineProcessor {} was interrupted.", id, e);
+                    logger.error("[MachineProcessor.start] {} was interrupted.", id, e);
                     break;
                 }
             }
         });
     }
 
-
-
-    public void addJob(Job job) {        
+    public void addJob(Job job) {
         pendingJobs.add(job);
-        logger.info("Job {} added to MachineProcessor {}", job.getId(), id);
+        logger.info("[MachineProcessor.addJob] {} added job {}", id, job.getId());
     }
 
     public void shutdown() {
@@ -59,32 +57,36 @@ public class MachineProcessor {
         executorService.shutdown();
     }
 
-
-    public void executeJob(Job job){
+    public void executeJob(Job job) {
         try {
+            job.advanceState();
             Thread.sleep(sleepTime * 1000);
         } catch (InterruptedException e) {
-            logger.error("MachineProcessor {} was interrupted during job execution.", id, e);
+            String message = String.format("[MachineProcessor.executeJob] {} was interrupted during job {} execution.",
+                    id, job.id);
+            logger.error(message, e);
             Thread.currentThread().interrupt();
         }
         job.setState(JobState.FINISHED);
         finishedJobs.add(job);
-        logger.info("Job {} finished processing on MachineProcessor {}", job.getId(), id);
+        logger.info("[MachineProcessor.executeJob] Job {} finished processing on MachineProcessor {}", job.getId(), id);
     }
 
-    public Job getFinishedJob(){
+    public Job getFinishedJob() {
         Job job = null;
         try {
             job = finishedJobs.take();
         } catch (InterruptedException e) {
-            logger.error("MachineProcessor {} was interrupted.", id, e);
+            String message = String.format(
+                    "[MachineProcessor.getFinishedJob] {} was interrupted during job {} execution.", id, job.id);
+            logger.error(message, e);
             Thread.currentThread().interrupt();
         }
         return job;
     }
 
-    public String getId(){
+    public String getId() {
         return id;
     }
-    
+
 }

@@ -24,15 +24,8 @@ public class MachineController {
     }
 
     @GetMapping("/jobUpdated/register")
-    public SseEmitter streamJobsAdded() {
-        return jobScheduler.streamJobsAdded();
-
+    public SseEmitter registerToJobUpdates() {
+        return jobScheduler.registerToJobUpdates();
     }
-
-    @GetMapping("/events")
-    public SseEmitter streamEvents() {
-        return jobScheduler.streamEvents();
-    }
-
 
 }

@@ -9,7 +9,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.slf4j.Logger;
 
 import tal.hyper_robotics.entities.Job;
-import tal.hyper_robotics.entities.JobState;
 
 public class MachineProcessor {
     private final String id;
@@ -67,9 +66,9 @@ public class MachineProcessor {
             logger.error(message, e);
             Thread.currentThread().interrupt();
         }
-        job.setState(JobState.FINISHED);
-        finishedJobs.add(job);
         logger.info("[MachineProcessor.executeJob] Job {} finished processing on MachineProcessor {}", job.getId(), id);
+        job.advanceState();        
+        finishedJobs.add(job);
     }
 
     public Job getFinishedJob() {
@@ -78,7 +77,7 @@ public class MachineProcessor {
             job = finishedJobs.take();
         } catch (InterruptedException e) {
             String message = String.format(
-                    "[MachineProcessor.getFinishedJob] {} was interrupted during job {} execution.", id, job.id);
+                    "[MachineProcessor.getFinishedJob] {} was interrupted during job execution.", id);
             logger.error(message, e);
             Thread.currentThread().interrupt();
         }

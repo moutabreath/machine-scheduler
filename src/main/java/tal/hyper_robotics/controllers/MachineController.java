@@ -12,14 +12,14 @@ import tal.hyper_robotics.scheduler.JobScheduler;
 
 @RestController
 @RequestMapping("/machine")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "*")
 public class MachineController {
 
     @Autowired
     private JobScheduler jobScheduler;
 
-    @PostMapping("/startJobs")
-    public void startJobs() {
+    @PostMapping("/startJob")
+    public void startJob() {
         jobScheduler.scheduleJobs();
     }
 
